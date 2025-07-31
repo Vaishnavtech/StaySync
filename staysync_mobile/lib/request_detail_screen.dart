@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart'; // Assuming ServiceRequest is in main.dart
 
 class RequestDetailScreen extends StatefulWidget {
@@ -13,6 +13,7 @@ class RequestDetailScreen extends StatefulWidget {
 
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
   late String _currentStatus;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -21,23 +22,40 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _updateStatus(String newStatus) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('StaySync')
-          .doc(widget.request.id)
-          .update({'status': newStatus});
-      
-      setState(() {
-        _currentStatus = newStatus;
-      });
+    setState(() {
+      _isLoading = true;
+    });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status updated to $newStatus')),
-      );
+    try {
+      await Supabase.instance.client
+          .from('staysync')
+          .update({'status': newStatus}).eq('id', widget.request.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status updated to $newStatus'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Pop the screen and return true to signal a refresh is needed
+        Navigator.of(context).pop(true);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update status: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -52,28 +70,54 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Service: ${widget.request.serviceType}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Service: ${widget.request.serviceType}',
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Status: $_currentStatus', style: const TextStyle(fontSize: 18)),
+            Text('Status: $_currentStatus',
+                style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 16),
-            const Text('Notes:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text(widget.request.notes.isNotEmpty ? widget.request.notes : 'No notes provided.', style: const TextStyle(fontSize: 16)),
-            const Spacer(),
-            if (_currentStatus == 'Pending')
-              ElevatedButton(
-                onPressed: () => _updateStatus('In Progress'),
-                child: const Text('Mark as In Progress'),
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              ),
-            if (_currentStatus == 'In Progress')
-              ElevatedButton(
-                onPressed: () => _updateStatus('Completed'),
-                child: const Text('Mark as Completed'),
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-              ),
+            const Text('Notes:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+                widget.request.notes.isNotEmpty
+                    ? widget.request.notes
+                    : 'No notes provided.',
+                style: const TextStyle(fontSize: 16)),
           ],
         ),
       ),
+      persistentFooterButtons: _isLoading
+          ? [const Center(child: CircularProgressIndicator())]
+          : _buildActionButtons(),
     );
+  }
+
+  List<Widget> _buildActionButtons() {
+    if (_currentStatus == 'Pending') {
+      return [
+        ElevatedButton(
+          onPressed: () => _updateStatus('In Progress'),
+          child: const Text('Mark as In Progress'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 50),
+            backgroundColor: Colors.blue,
+          ),
+        ),
+      ];
+    }
+    if (_currentStatus == 'In Progress') {
+      return [
+        ElevatedButton(
+          onPressed: () => _updateStatus('Completed'),
+          child: const Text('Mark as Completed'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 50),
+            backgroundColor: Colors.green,
+          ),
+        ),
+      ];
+    }
+    return []; // No buttons if status is Completed or anything else
   }
 }

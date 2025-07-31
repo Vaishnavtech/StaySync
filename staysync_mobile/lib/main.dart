@@ -1,20 +1,21 @@
+import 'package:staysync_mobile/analytics_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'request_detail_screen.dart';
-
-// TODO: Make sure to add your own firebase_options.dart file
-// by running `flutterfire configure` in your terminal.
-import 'firebase_options.dart';
+import 'notification_service.dart';
 
 // --- Main Application Entry Point ---
 void main() async {
-  // Ensure Flutter bindings are initialized before calling Firebase
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+
+  await Supabase.initialize(
+    url: 'https://tkhkvpquwqnyvwflfhpx.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRraGt2cHF1d3FueXZ3ZmxmaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjEyNjYsImV4cCI6MjA2OTUzNzI2Nn0.a5AZNhl4UawXaRfQUAFqdWRmAmY6rBLH1rshEkRSg6g',
   );
+
+  // Initialize the notification service
+  await NotificationService().init();
+
   runApp(const MyApp());
 }
 
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Swagat Staff App',
+      title: 'Staff App',
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: const Color(0xFFF0F2F5),
@@ -54,7 +55,7 @@ class ServiceRequest {
   final String serviceType;
   final String notes;
   final String status;
-  final Timestamp createdAt;
+  final DateTime createdAt;
 
   ServiceRequest({
     required this.id,
@@ -65,16 +66,15 @@ class ServiceRequest {
     required this.createdAt,
   });
 
-  // Factory constructor to create a ServiceRequest from a Firestore document
-  factory ServiceRequest.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  // Factory constructor to create a ServiceRequest from a Supabase record
+  factory ServiceRequest.fromMap(Map<String, dynamic> data) {
     return ServiceRequest(
-      id: doc.id,
+      id: data['id'],
       roomNumber: data['room_number'] ?? 0,
-      serviceType: data['serviceType'] ?? 'Unknown Service',
+      serviceType: data['servicetype'] ?? 'Unknown Service',
       notes: data['notes'] ?? '',
       status: data['status'] ?? 'Pending',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      createdAt: DateTime.parse(data['createdat']),
     );
   }
 }
@@ -88,50 +88,74 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // State to track the selected filter chip
   String _selectedStatus = 'Pending';
+  RealtimeChannel? _realtimeChannel;
 
-  // Hardcoded service requests
-  final List<ServiceRequest> allRequests = [
-    ServiceRequest(
-      id: 'request001',
-      roomNumber: 101,
-      serviceType: 'Room Cleaning',
-      notes: 'Please provide two extra water bottles.',
-      status: 'Pending',
-      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:16:20Z')),
-    ),
-    ServiceRequest(
-      id: 'request002',
-      roomNumber: 305,
-      serviceType: 'In-Room Dining',
-      notes: 'One Chicken Biryani, spicy.',
-      status: 'Pending',
-      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:20:30Z')),
-    ),
-    ServiceRequest(
-      id: 'request003',
-      roomNumber: 204,
-      serviceType: 'Laundry',
-      notes: 'Two shirts, one pair of trousers.',
-      status: 'In Progress',
-      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:13:00Z')),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _setupRealtimeListener();
+  }
+
+  @override
+  void dispose() {
+    // It's crucial to remove the channel subscription when the widget is disposed
+    // to prevent memory leaks and unwanted background processing.
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
+    super.dispose();
+  }
+
+  void _setupRealtimeListener() {
+    _realtimeChannel = Supabase.instance.client.channel('public:staysync');
+    _realtimeChannel!
+        .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'staysync',
+            callback: (payload) {
+              final newRequest = ServiceRequest.fromMap(payload.newRecord);
+
+              NotificationService().showNotification(
+                id: newRequest.hashCode,
+                title: 'New Service Request',
+                body:
+                    'Room ${newRequest.roomNumber} has requested ${newRequest.serviceType}.',
+              );
+
+              if (_selectedStatus == 'Pending') {
+                setState(() {});
+              }
+            })
+        .subscribe();
+  }
+
+  Future<List<ServiceRequest>> _fetchRequests() async {
+    final supabase = Supabase.instance.client;
+    
+    // The query is now much simpler. It always fetches requests
+    // where the status exactly matches the selected tab's status.
+    final response = await supabase
+        .from('staysync')
+        .select()
+        .eq('status', _selectedStatus)
+        .order('createdat', ascending: false);
+
+    final List<ServiceRequest> requests = [];
+    for (final item in response) {
+      requests.add(ServiceRequest.fromMap(item));
+    }
+    return requests;
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Apply the filter based on the selected status
-    final filteredRequests = allRequests.where((req) {
-      if (_selectedStatus == 'All') {
-        // Show "Pending" and "In Progress" in the "All" view
-        return req.status == 'Pending' || req.status == 'In Progress';
-      }
-      return req.status == _selectedStatus;
-    }).toList();
-    
-    // Sort by creation time descending
-    filteredRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Determine the title for the empty list message
+    String emptyListTitle = _selectedStatus;
+    if (_selectedStatus == 'Pending') {
+      emptyListTitle = 'New';
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -139,30 +163,59 @@ class _HomeScreenState extends State<HomeScreen> {
           'StaySync Requests',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: 'View Analytics',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AnalyticsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Filter Bar
           _buildFilterChips(),
-          
-          // Static list of requests
           Expanded(
-            child: filteredRequests.isEmpty
-                ? Center(child: Text('No $_selectedStatus requests.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8.0),
-                    itemCount: filteredRequests.length,
-                    itemBuilder: (context, index) {
-                      return RequestCard(request: filteredRequests[index]);
-                    },
-                  ),
+            child: FutureBuilder<List<ServiceRequest>>(
+              future: _fetchRequests(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(child: Text('No $emptyListTitle requests.'));
+                }
+
+                final requests = snapshot.data!;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: requests.length,
+                  itemBuilder: (context, index) {
+                    return RequestCard(
+                      request: requests[index],
+                      onUpdate: () {
+                        // When a request is updated, trigger a rebuild to refetch the data
+                        setState(() {});
+                      },
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  // Helper widget for the filter chips
   Widget _buildFilterChips() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -170,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           FilterChip(
-            label: const Text('Pending'),
+            label: const Text('New'),
             selected: _selectedStatus == 'Pending',
             onSelected: (selected) {
               if (selected) setState(() => _selectedStatus = 'Pending');
@@ -186,12 +239,12 @@ class _HomeScreenState extends State<HomeScreen> {
             selectedColor: Colors.blue.shade200,
           ),
           FilterChip(
-            label: const Text('All Active'),
-            selected: _selectedStatus == 'All',
+            label: const Text('Completed'),
+            selected: _selectedStatus == 'Completed',
             onSelected: (selected) {
-              if (selected) setState(() => _selectedStatus = 'All');
+              if (selected) setState(() => _selectedStatus = 'Completed');
             },
-            selectedColor: Colors.grey.shade400,
+            selectedColor: Colors.green.shade200,
           ),
         ],
       ),
@@ -202,10 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
 // --- Request Card Widget (Stateless) ---
 class RequestCard extends StatelessWidget {
   final ServiceRequest request;
+  final VoidCallback onUpdate;
 
-  const RequestCard({super.key, required this.request});
+  const RequestCard({super.key, required this.request, required this.onUpdate});
 
-  // Helper to determine color based on status
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending':
@@ -221,11 +274,9 @@ class RequestCard extends StatelessWidget {
     }
   }
 
-  // Helper to format the timestamp into a relative string
-  String _formatTimestamp(Timestamp timestamp) {
+  String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
-    final requestTime = timestamp.toDate();
-    final difference = now.difference(requestTime);
+    final difference = now.difference(timestamp);
 
     if (difference.inMinutes < 60) {
       return '${difference.inMinutes}m ago';
@@ -241,16 +292,25 @@ class RequestCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
       child: InkWell(
-        onTap: () {
-          // TODO: Navigate to a detail screen to update status
-          print('Tapped on request for Room ${request.roomNumber}');
+        onTap: () async {
+          // Navigate and wait for a result.
+          final result = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (context) => RequestDetailScreen(request: request),
+            ),
+          );
+
+          // If the result is true, it means the status was updated.
+          // Call the onUpdate callback to trigger a refresh on the HomeScreen.
+          if (result == true) {
+            onUpdate();
+          }
         },
         child: Row(
           children: [
-            // Status Indicator Bar
             Container(
               width: 8,
-              height: 90, // Set a fixed height for consistency
+              height: 90,
               decoration: BoxDecoration(
                 color: _getStatusColor(request.status),
                 borderRadius: const BorderRadius.only(
@@ -259,14 +319,12 @@ class RequestCard extends StatelessWidget {
                 ),
               ),
             ),
-            // Main Content
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top Row: Room Number and Timestamp
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -284,7 +342,6 @@ class RequestCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Bottom Row: Service Type and Notes Icon
                     Row(
                       children: [
                         Expanded(
