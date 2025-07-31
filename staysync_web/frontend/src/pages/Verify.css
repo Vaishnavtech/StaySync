@@ -10,7 +10,7 @@ html, body {
 .verify-container {
   height: 100vh;
   width: 100vw;
-  background-image: url('/home/sarang/Hotel-Conceirge/staysync_web/frontend/public/bg1.png'); /* ✅ Use image in public folder */
+  background-image: url('/home/sarang/Hotel-Conceirge/StaySync/staysync_web/frontend/public/bg1.png'); /* ✅ Use image in public folder */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
