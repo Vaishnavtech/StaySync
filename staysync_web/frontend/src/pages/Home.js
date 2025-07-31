@@ -15,6 +15,7 @@ function Home() {
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
+          minHeight: "100vh",
         }}
       >
         <Hero />
