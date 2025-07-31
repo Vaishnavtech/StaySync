@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'request_detail_screen.dart';
+import 'notification_service.dart';
 
 // --- Main Application Entry Point ---
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // TODO: Replace with your own Supabase URL and Anon Key
   await Supabase.initialize(
     url: 'https://tkhkvpquwqnyvwflfhpx.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRraGt2cHF1d3FueXZ3ZmxmaHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjEyNjYsImV4cCI6MjA2OTUzNzI2Nn0.a5AZNhl4UawXaRfQUAFqdWRmAmY6rBLH1rshEkRSg6g',
   );
+
+  // Initialize the notification service
+  await NotificationService().init();
 
   runApp(const MyApp());
 }
@@ -84,8 +87,48 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // "Pending" status corresponds to the "New" tab. This is the default.
   String _selectedStatus = 'Pending';
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupRealtimeListener();
+  }
+
+  @override
+  void dispose() {
+    // It's crucial to remove the channel subscription when the widget is disposed
+    // to prevent memory leaks and unwanted background processing.
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
+    super.dispose();
+  }
+
+  void _setupRealtimeListener() {
+    _realtimeChannel = Supabase.instance.client.channel('public:staysync');
+    _realtimeChannel!
+        .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'staysync',
+            callback: (payload) {
+              final newRequest = ServiceRequest.fromMap(payload.newRecord);
+
+              NotificationService().showNotification(
+                id: newRequest.hashCode,
+                title: 'New Service Request',
+                body:
+                    'Room ${newRequest.roomNumber} has requested ${newRequest.serviceType}.',
+              );
+
+              if (_selectedStatus == 'Pending') {
+                setState(() {});
+              }
+            })
+        .subscribe();
+  }
 
   Future<List<ServiceRequest>> _fetchRequests() async {
     final supabase = Supabase.instance.client;
