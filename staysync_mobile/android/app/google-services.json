@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "453136945543",
+    "project_id": "staysyncbase",
+    "storage_bucket": "staysyncbase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453136945543:android:8e45e37f7c0ac86a634322",
+        "android_client_info": {
+          "package_name": "com.example.staysync_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKRIlFMG-BEyzspJy6C-i-h96BtQYFjoI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
