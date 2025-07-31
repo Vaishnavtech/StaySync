@@ -84,19 +84,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // "Pending" status corresponds to the "New" tab. This is the default.
   String _selectedStatus = 'Pending';
 
   Future<List<ServiceRequest>> _fetchRequests() async {
     final supabase = Supabase.instance.client;
-    final query = supabase.from('staysync').select();
-
-    if (_selectedStatus == 'All') {
-      query.filter('status', 'in', ['Pending', 'In Progress']);
-    } else {
-      query.eq('status', _selectedStatus);
-    }
-
-    final response = await query.order('createdat', ascending: false);
+    
+    // The query is now much simpler. It always fetches requests
+    // where the status exactly matches the selected tab's status.
+    final response = await supabase
+        .from('staysync')
+        .select()
+        .eq('status', _selectedStatus)
+        .order('createdat', ascending: false);
 
     final List<ServiceRequest> requests = [];
     for (final item in response) {
@@ -107,6 +107,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine the title for the empty list message
+    String emptyListTitle = _selectedStatus;
+    if (_selectedStatus == 'Pending') {
+      emptyListTitle = 'New';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -128,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(child: Text('No $_selectedStatus requests.'));
+                  return Center(child: Text('No $emptyListTitle requests.'));
                 }
 
                 final requests = snapshot.data!;
@@ -136,7 +142,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.all(8.0),
                   itemCount: requests.length,
                   itemBuilder: (context, index) {
-                    return RequestCard(request: requests[index]);
+                    return RequestCard(
+                      request: requests[index],
+                      onUpdate: () {
+                        // When a request is updated, trigger a rebuild to refetch the data
+                        setState(() {});
+                      },
+                    );
                   },
                 );
               },
@@ -154,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           FilterChip(
-            label: const Text('Pending'),
+            label: const Text('New'),
             selected: _selectedStatus == 'Pending',
             onSelected: (selected) {
               if (selected) setState(() => _selectedStatus = 'Pending');
@@ -170,12 +182,12 @@ class _HomeScreenState extends State<HomeScreen> {
             selectedColor: Colors.blue.shade200,
           ),
           FilterChip(
-            label: const Text('All Active'),
-            selected: _selectedStatus == 'All',
+            label: const Text('Completed'),
+            selected: _selectedStatus == 'Completed',
             onSelected: (selected) {
-              if (selected) setState(() => _selectedStatus = 'All');
+              if (selected) setState(() => _selectedStatus = 'Completed');
             },
-            selectedColor: Colors.grey.shade400,
+            selectedColor: Colors.green.shade200,
           ),
         ],
       ),
@@ -186,8 +198,9 @@ class _HomeScreenState extends State<HomeScreen> {
 // --- Request Card Widget (Stateless) ---
 class RequestCard extends StatelessWidget {
   final ServiceRequest request;
+  final VoidCallback onUpdate;
 
-  const RequestCard({super.key, required this.request});
+  const RequestCard({super.key, required this.request, required this.onUpdate});
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -222,12 +235,19 @@ class RequestCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
       child: InkWell(
-        onTap: () {
-          Navigator.of(context).push(
+        onTap: () async {
+          // Navigate and wait for a result.
+          final result = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (context) => RequestDetailScreen(request: request),
             ),
           );
+
+          // If the result is true, it means the status was updated.
+          // Call the onUpdate callback to trigger a refresh on the HomeScreen.
+          if (result == true) {
+            onUpdate();
+          }
         },
         child: Row(
           children: [
