@@ -1,3 +1,4 @@
+import 'package:staysync_mobile/analytics_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'request_detail_screen.dart';
@@ -162,6 +163,19 @@ class _HomeScreenState extends State<HomeScreen> {
           'StaySync Requests',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            tooltip: 'View Analytics',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AnalyticsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
