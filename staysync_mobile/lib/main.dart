@@ -1,6 +1,8 @@
+import 'package:blurrycontainer/blurrycontainer.dart';
 import 'package:staysync_mobile/analytics_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:staysync_mobile/auth_screen.dart';
 import 'request_detail_screen.dart';
 import 'notification_service.dart';
 
@@ -28,22 +30,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Staff App',
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        scaffoldBackgroundColor: const Color(0xFFF0F2F5),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 1,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.0),
-          ),
-        ),
+        brightness: Brightness.dark,
+        primaryColor: Colors.blue,
+        scaffoldBackgroundColor: Colors.black,
+        fontFamily: 'Inter',
       ),
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: const AuthScreen(),
     );
   }
 }
@@ -99,8 +92,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    // It's crucial to remove the channel subscription when the widget is disposed
-    // to prevent memory leaks and unwanted background processing.
     if (_realtimeChannel != null) {
       Supabase.instance.client.removeChannel(_realtimeChannel!);
     }
@@ -133,9 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<List<ServiceRequest>> _fetchRequests() async {
     final supabase = Supabase.instance.client;
-    
-    // The query is now much simpler. It always fetches requests
-    // where the status exactly matches the selected tab's status.
     final response = await supabase
         .from('staysync')
         .select()
@@ -151,21 +139,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Determine the title for the empty list message
     String emptyListTitle = _selectedStatus;
     if (_selectedStatus == 'Pending') {
       emptyListTitle = 'New';
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: const Text(
-          'StaySync Requests',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'StaySync',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.analytics_outlined),
+            icon: const Icon(Icons.analytics_outlined, color: Colors.white),
             tooltip: 'View Analytics',
             onPressed: () {
               Navigator.of(context).push(
@@ -177,38 +167,53 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          _buildFilterChips(),
-          Expanded(
-            child: FutureBuilder<List<ServiceRequest>>(
-              future: _fetchRequests(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(child: Text('No $emptyListTitle requests.'));
-                }
+          // Background Image
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage("assets/images/background.png"),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Main Content
+          SafeArea(
+            child: Column(
+              children: [
+                _buildFilterTabs(),
+                Expanded(
+                  child: FutureBuilder<List<ServiceRequest>>(
+                    future: _fetchRequests(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator(color: Colors.white));
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(child: Text('No $emptyListTitle requests.', style: const TextStyle(color: Colors.white70)));
+                      }
 
-                final requests = snapshot.data!;
-                return ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: requests.length,
-                  itemBuilder: (context, index) {
-                    return RequestCard(
-                      request: requests[index],
-                      onUpdate: () {
-                        // When a request is updated, trigger a rebuild to refetch the data
-                        setState(() {});
-                      },
-                    );
-                  },
-                );
-              },
+                      final requests = snapshot.data!;
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(8.0),
+                        itemCount: requests.length,
+                        itemBuilder: (context, index) {
+                          return RequestCard(
+                            request: requests[index],
+                            onUpdate: () {
+                              setState(() {});
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -216,37 +221,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildFilterTabs() {
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          FilterChip(
-            label: const Text('New'),
-            selected: _selectedStatus == 'Pending',
-            onSelected: (selected) {
-              if (selected) setState(() => _selectedStatus = 'Pending');
-            },
-            selectedColor: Colors.orange.shade200,
-          ),
-          FilterChip(
-            label: const Text('In Progress'),
-            selected: _selectedStatus == 'In Progress',
-            onSelected: (selected) {
-              if (selected) setState(() => _selectedStatus = 'In Progress');
-            },
-            selectedColor: Colors.blue.shade200,
-          ),
-          FilterChip(
-            label: const Text('Completed'),
-            selected: _selectedStatus == 'Completed',
-            onSelected: (selected) {
-              if (selected) setState(() => _selectedStatus = 'Completed');
-            },
-            selectedColor: Colors.green.shade200,
-          ),
+          _buildFilterTab('New', 'Pending'),
+          _buildFilterTab('In Progress', 'In Progress'),
+          _buildFilterTab('Completed', 'Completed'),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTab(String title, String status) {
+    final isSelected = _selectedStatus == status;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedStatus = status),
+      child: BlurryContainer(
+        blur: isSelected ? 2 : 5,
+        color: isSelected ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Text(
+          title,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }
@@ -262,15 +266,13 @@ class RequestCard extends StatelessWidget {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending':
-        return Colors.orange;
+        return Colors.orangeAccent;
       case 'In Progress':
-        return Colors.blue;
+        return Colors.blueAccent;
       case 'Completed':
-        return Colors.green;
-      case 'Cancelled':
-        return Colors.grey;
+        return Colors.greenAccent;
       default:
-        return Colors.black;
+        return Colors.grey;
     }
   }
 
@@ -289,84 +291,62 @@ class RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-      child: InkWell(
-        onTap: () async {
-          // Navigate and wait for a result.
-          final result = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (context) => RequestDetailScreen(request: request),
-            ),
-          );
-
-          // If the result is true, it means the status was updated.
-          // Call the onUpdate callback to trigger a refresh on the HomeScreen.
-          if (result == true) {
-            onUpdate();
-          }
-        },
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 90,
-              decoration: BoxDecoration(
-                color: _getStatusColor(request.status),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  bottomLeft: Radius.circular(8),
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (context) => RequestDetailScreen(
+            request: request,
+            onUpdate: onUpdate,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        child: BlurryContainer(
+          blur: 8,
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Container(
+                width: 6,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _getStatusColor(request.status),
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              const SizedBox(width: 16),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Room ${request.roomNumber}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                        Text(
-                          _formatTimestamp(request.createdAt),
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                        ),
-                      ],
+                    Text(
+                      'Room ${request.roomNumber}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: Colors.white,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            request.serviceType,
-                            style: const TextStyle(fontSize: 16),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (request.notes.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: Icon(
-                              Icons.chat_bubble_outline,
-                              color: Colors.grey.shade700,
-                              size: 20,
-                            ),
-                          ),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      request.serviceType,
+                      style: const TextStyle(fontSize: 16, color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              Text(
+                _formatTimestamp(request.createdAt),
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );
