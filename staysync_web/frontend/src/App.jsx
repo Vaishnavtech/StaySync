@@ -1,13 +1,34 @@
-import React from 'react';
-import Verify from './pages/Verify';
+/*
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Verify from "./pages/Verify";
 
-const App = () => {
+function App() {
   return (
-    <div>
-      <h1></h1>
-      <Verify />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Verify />} />
+        <Route path="/home" element={<Home />} />
+      </Routes>
+    </BrowserRouter>
   );
-};
+}
+
+export default App;
+*/
+
+// App.jsx
+import { Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Verify from "./pages/Verify";
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Verify />} />
+      <Route path="/home" element={<Home />} />
+    </Routes>
+  );
+}
 
 export default App;

@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import "./Verify.css";
 
 const rooms = {
-  "101": "guest101",
-  "102": "guest102",
-  "103": "guest103",
+  101: "guest101",
+  102: "guest102",
+  103: "guest103",
 };
 
 function Verify() {
@@ -18,7 +18,7 @@ function Verify() {
     e.preventDefault();
     if (rooms[room] === password) {
       setError("");
-      navigate("/dashboard"); // replace with your target route
+      navigate("/home"); // replace with your target route
     } else {
       setError("Invalid room or password ❌");
     }

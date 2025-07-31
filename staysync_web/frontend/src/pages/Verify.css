@@ -1,5 +1,6 @@
 /* Ensure body and html take full height */
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -10,11 +11,11 @@ html, body {
 .verify-container {
   height: 100vh;
   width: 100vw;
-  background-image: url('/home/sarang/Hotel-Conceirge/StaySync/staysync_web/frontend/public/bg1.png'); /* ✅ Use image in public folder */
+  background-image: url("D:\StaysyncWeb\StaySync\staysync_web\frontend\public\bg1.png"); /* ✅ Use image in public folder */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  
+
   display: flex;
   justify-content: center;
   align-items: center;
@@ -38,7 +39,8 @@ form label {
   text-align: left;
 }
 
-input, select {
+input,
+select {
   width: 100%;
   padding: 0.6rem;
   margin-bottom: 1rem;
@@ -66,4 +68,3 @@ button:hover {
   color: red;
   margin-top: 0.5rem;
 }
-
