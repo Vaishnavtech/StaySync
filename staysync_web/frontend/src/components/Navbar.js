@@ -17,7 +17,7 @@ function Navbar() {
       <h2 style={{ margin: 0 }}>StaySync</h2>
       <div>
         <Link
-          to="/submit"
+          to="/submit-request"
           style={{ color: "#fff", margin: "0 1rem", textDecoration: "none" }}
         >
           Submit Request
