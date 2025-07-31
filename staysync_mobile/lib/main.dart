@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'request_detail_screen.dart';
 
 // TODO: Make sure to add your own firebase_options.dart file
 // by running `flutterfire configure` in your terminal.
@@ -90,83 +91,71 @@ class _HomeScreenState extends State<HomeScreen> {
   // State to track the selected filter chip
   String _selectedStatus = 'Pending';
 
+  // Hardcoded service requests
+  final List<ServiceRequest> allRequests = [
+    ServiceRequest(
+      id: 'request001',
+      roomNumber: 101,
+      serviceType: 'Room Cleaning',
+      notes: 'Please provide two extra water bottles.',
+      status: 'Pending',
+      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:16:20Z')),
+    ),
+    ServiceRequest(
+      id: 'request002',
+      roomNumber: 305,
+      serviceType: 'In-Room Dining',
+      notes: 'One Chicken Biryani, spicy.',
+      status: 'Pending',
+      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:20:30Z')),
+    ),
+    ServiceRequest(
+      id: 'request003',
+      roomNumber: 204,
+      serviceType: 'Laundry',
+      notes: 'Two shirts, one pair of trousers.',
+      status: 'In Progress',
+      createdAt: Timestamp.fromDate(DateTime.parse('2025-07-31T14:13:00Z')),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    // Apply the filter based on the selected status
+    final filteredRequests = allRequests.where((req) {
+      if (_selectedStatus == 'All') {
+        // Show "Pending" and "In Progress" in the "All" view
+        return req.status == 'Pending' || req.status == 'In Progress';
+      }
+      return req.status == _selectedStatus;
+    }).toList();
+    
+    // Sort by creation time descending
+    filteredRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'StaySync Requests',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        actions: const [
-          // Real-time status indicator
-          Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                Icon(Icons.circle, color: Colors.green, size: 12),
-                SizedBox(width: 6),
-                Text('Live', style: TextStyle(color: Colors.green)),
-              ],
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
           // Filter Bar
           _buildFilterChips(),
           
-          // Real-time list of requests
+          // Static list of requests
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              // Listen to the 'StaySync' collection, ordered by creation time
-              stream: FirebaseFirestore.instance
-                  .collection('StaySync')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                // Handle loading state
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                // Handle error state
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                // Handle no data
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('No service requests found.'));
-                }
-
-                // Convert Firestore documents to a list of ServiceRequest objects
-                final requests = snapshot.data!.docs
-                    .map((doc) => ServiceRequest.fromFirestore(doc))
-                    .toList();
-                
-                // Apply the filter based on the selected status
-                final filteredRequests = requests.where((req) {
-                  if (_selectedStatus == 'All') {
-                    // Show "Pending" and "In Progress" in the "All" view
-                    return req.status == 'Pending' || req.status == 'In Progress';
-                  }
-                  return req.status == _selectedStatus;
-                }).toList();
-
-                if (filteredRequests.isEmpty) {
-                  return Center(child: Text('No $_selectedStatus requests.'));
-                }
-
-                // Build the list view
-                return ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: filteredRequests.length,
-                  itemBuilder: (context, index) {
-                    return RequestCard(request: filteredRequests[index]);
-                  },
-                );
-              },
-            ),
+            child: filteredRequests.isEmpty
+                ? Center(child: Text('No $_selectedStatus requests.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    itemCount: filteredRequests.length,
+                    itemBuilder: (context, index) {
+                      return RequestCard(request: filteredRequests[index]);
+                    },
+                  ),
           ),
         ],
       ),
