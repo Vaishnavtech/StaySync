@@ -18,7 +18,7 @@ function Verify() {
     e.preventDefault();
     if (rooms[room] === password) {
       setError("");
-      navigate("/home"); // replace with your target route
+      navigate("/home");
     } else {
       setError("Invalid room or password ❌");
     }
